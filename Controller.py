@@ -1,5 +1,6 @@
 
 import numpy as np
+import math
 from numpy.random import default_rng
 from NetworkManager import NetworkManager
 from EnvironmentState import State
@@ -11,6 +12,9 @@ UP = bytes.fromhex('01')
 RIGHT =  bytes.fromhex('02')
 DOWN =  bytes.fromhex('03')
 NOOP =  bytes.fromhex('04')
+
+global turns
+turns = []
 
 # a general Manhattan distance function
 def taxiDist(x1, y1, x2, y2):
@@ -31,10 +35,12 @@ def taxiDist(x1, y1, x2, y2):
 class Controller:
 
     # Helper functions for my agent
+    # calculates the taxicab distance from (x1, y1) to the food
     def foodDist(self, x1, y1):
         dist = taxiDist(x1, y1, self.state.food[0], self.state.food[1])
         return dist
 
+    # calculates a weighted distance to the body
     def tailDist(self, x1, y1):
         # keeping track of length-to-tail on snake body
         t = 0
@@ -42,24 +48,48 @@ class Controller:
             t += self.state.body[i].length
 
         distSum = 0
-        for i in range(1, len(self.state.body) - 1):
-            t = t - (self.state.body[i].length / 2)
-            # finding midpoint of line (need to take into account wall tp)
-            x = (self.state.body[i].x1 + self.state.body[i].x2) / 2
-            y = (self.state.body[i].y1 + self.state.body[i].y2) / 2
-            # or just setting to the top of the line
-            # x = self.state.body[i].x1
-            # y = self.state.body[i].y1
-            # want a weight of headDist/tailDist
-            headDist = taxiDist(x1, y1, x, y)
+        for i in range(1,math.floor(math.log(len(self.state.body), 2))):
+            x = self.state.body[2^i].x1
+            y = self.state.body[2^i].y1
             try:
-                distSum = distSum + (2*headDist / (t * i))
+                distSum += t/((2^i)*(taxiDist(x1, y1, x, y)))
             except:
-                continue
-            t = t - (self.state.body[i].length / 2)
+                distSum += t/(2^(i+1))
+
+        # x = self.state.body[len(self.state.body) // 2].x1
+        # y = self.state.body[len(self.state.body) // 2].y1
+        # try:
+        #     distSum += t/(taxiDist(x1, y1, x, y))/2
+        # except:
+        #     distSum += t/2
+        # if len(self.state.body) >= 4:
+        #     x = self.state.body[len(self.state.body) // 4].x1
+        #     y = self.state.body[len(self.state.body) // 4].y1
+        #     try:
+        #         distSum += t / (taxiDist(x1, y1, x, y)) / 4
+        #     except:
+        #         distSum += t / 4
+
+        # for i in range(1, len(self.state.body) - 1):
+        #     t = t - (self.state.body[i].length / 2)
+        #     # finding midpoint of line (need to take into account wall tp)
+        #     x = (self.state.body[i].x1 + self.state.body[i].x2) / 2
+        #     y = (self.state.body[i].y1 + self.state.body[i].y2) / 2
+        #     # or just setting to the top of the line
+        #     # x = self.state.body[i].x1
+        #     # y = self.state.body[i].y1
+        #     # want a weight of headDist/tailDist
+        #     headDist = taxiDist(x1, y1, x, y)
+        #     try:
+        #         distSum += (headDist)
+        #         # distSum = distSum + ((t * i)/(2*headDist))
+        #     except:
+        #         pass
+        #     t = t - (self.state.body[i].length / 2)
 
         return distSum
 
+    # detects collisions based on taxicab distance, since our snake only moves in "taxicab lines"
     def collision(self, x1, y1):
         for line in self.state.body:
             dist1 = taxiDist(x1, y1, line.x1, line.y1)
@@ -69,6 +99,35 @@ class Controller:
                 return True
 
         return False
+
+    # finds the number of left and right turns in snake body -- returns the ratio L/R
+    def numLR (self):
+        L = 0
+        R = 0
+        # POV = []
+        for i in range(1, len(turns)):
+            if turns[i-1] == 3:
+                if turns[i-1]-turns[i] == 1:
+                    L += 1
+                    # POV.append('L')
+                else:
+                    R += 1
+                    # POV.append('R')
+            elif turns[i-1] == 0:
+                if (turns[i - 1] - turns[i]) == -1:
+                    R += 1
+                    # POV.append('R')
+                else:
+                    L += 1
+                    # POV.append('L')
+            elif (turns[i-1]-turns[i]) == -1:
+                R += 1
+                # POV.append('R')
+            else:
+                L += 1
+                # POV.append('L')
+
+        return L, R
     
     
     
@@ -93,6 +152,7 @@ class Controller:
         # Hint You will require a collision detection function.
 
         # setting options and foodHeadDist
+        global turns
         self.options = {'00': (self.state.body[0].x1 - 1, self.state.body[0].y1),
                         '01': (self.state.body[0].x1, self.state.body[0].y1 - 1),
                         '02': (self.state.body[0].x1 + 1, self.state.body[0].y1),
@@ -107,37 +167,111 @@ class Controller:
         elif (self.state.body[0].x1_incr == -1):
             del self.options['00']
 
+        # Collision function call
+        Dkeys = []
+        for key in self.options:
+            if self.collision(x1=self.options[key][0], y1=self.options[key][1]):
+                Dkeys.append(key)
+                
+        for key in Dkeys:
+            del self.options[key]
+        
         self.foodHeadDist = self.foodDist(x1=self.state.body[0].x1, y1=self.state.body[0].y1)
 
-        heuristicSum = {'00': 0, '01': 0, '02': 0, '03': 0}
-
-        # putting foodDist weight into heuristicSum
+        heuristicSum = {}
         for key in self.options:
-            weight = self.foodDist(x1=self.options[key][0], y1=self.options[key][1])
-            try:
-                weight = (self.foodHeadDist) / weight
-            except:
-                continue
-            heuristicSum[key] += weight
+            heuristicSum[key] = 0
+        if heuristicSum=={}:
+            return NOOP
+
 
         # putting tailDist weight into heuristicSum
         for key in self.options:
             weight = self.tailDist(x1=self.options[key][0], y1=self.options[key][1])
             heuristicSum[key] += weight
 
-        # Collision function call
+        # weighs left and right turn in heuristicSum based on numLR ratio of L/R
+        if len(turns) > 1:
+            weights = self.numLR()
+            if weights[0] > weights[1]:
+                w = weights[0]-weights[1]
+                if turns[-1] == 0 and '03' in heuristicSum.keys():
+                    heuristicSum['03'] *= w
+                if turns[-1] == 1 and '00' in heuristicSum.keys():
+                    heuristicSum['00'] *= w
+                if turns[-1] == 2 and '01' in heuristicSum.keys():
+                    heuristicSum['01'] *= w
+                if turns[-1] == 3 and '02' in heuristicSum.keys():
+                    heuristicSum['02'] *= w
+            elif weights[1] > weights[0]:
+                w = weights[1]-weights[0]
+                if turns[-1] == 0 and '01' in heuristicSum.keys():
+                    heuristicSum['01'] *= w
+                if turns[-1] == 1 and '02' in heuristicSum.keys():
+                    heuristicSum['02'] *= w
+                if turns[-1] == 2 and '03' in heuristicSum.keys():
+                    heuristicSum['03'] *= w
+                if turns[-1] == 3 and '00' in heuristicSum.keys():
+                    heuristicSum['00'] *= w
+            # if turns[-1] == 0:
+            #     if '03' in heuristicSum.keys():
+            #         heuristicSum['03'] += weights[0]/len(self.state.body)
+            #     if '01' in heuristicSum.keys():
+            #         try:
+            #             heuristicSum['01'] += weights[1]/len(self.state.body)
+            #         except Exception:
+            #             pass
+            # elif turns[-1] == 1:
+            #     if '00' in heuristicSum.keys():
+            #         heuristicSum['00'] += weights[0]/len(self.state.body)
+            #     if '02' in heuristicSum.keys():
+            #         try:
+            #             heuristicSum['02'] += weights[1]/len(self.state.body)
+            #         except Exception:
+            #             pass
+            # elif turns[-1] == 2:
+            #     if '01' in heuristicSum.keys():
+            #         heuristicSum['01'] += weights[0]/len(self.state.body)
+            #     if '03' in heuristicSum.keys():
+            #         try:
+            #             heuristicSum['03'] += weights[1]/len(self.state.body)
+            #         except Exception:
+            #             pass
+            # elif turns[-1] == 3:
+            #     if '02' in heuristicSum.keys():
+            #         heuristicSum['02'] += weights[0]/len(self.state.body)
+            #     if '00' in heuristicSum.keys():
+            #         try:
+            #             heuristicSum['00'] += weights[1]/len(self.state.body)
+            #         except Exception:
+            #             pass
+
+
+        # putting foodDist weight into heuristicSum
         for key in self.options:
-            if self.collision(x1=self.options[key][0], y1=self.options[key][1]):
-                heuristicSum[key] = 0
-            # detect walls
-            # if self.options[key][0] == 0 or self.options[key][0] == 400 or self.options[key][1] == 0 or self.options[key][1] == 300:
-            #     heuristicSum[key] = 0
+            weight = self.foodDist(x1=self.options[key][0], y1=self.options[key][1])
+            try:
+                weight =  weight / (self.foodHeadDist)
+            except:
+                pass
+
+            heuristicSum[key] += weight
+
 
         # setting the favored choice
         # choice = max(self.optionsProb, key=self.optionsProb.get)
-        choice = max(heuristicSum, key=heuristicSum.get)
+        choice = min(heuristicSum, key=heuristicSum.get)
         if heuristicSum[choice] == 0:
             return NOOP
+        turns.append(int(choice[1]))
+        if len(turns) > 1:
+            if turns[-1] == turns[-2]:
+                turns = turns[:-1]
+        if self.state.body[-1].length == 1:
+            turns = turns[1:]
+
+
+
         return bytes.fromhex(choice)
 
     def control(self):
@@ -152,7 +286,6 @@ class Controller:
             # 3. Send next command
             self.networkMgr.sendCommand(self.getNextCommand())
         
-
 
 
 cntrl=Controller()

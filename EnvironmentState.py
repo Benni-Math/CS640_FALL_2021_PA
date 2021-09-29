@@ -28,6 +28,8 @@ class SnakeBodyAttr:
         self.y2_incr=data[7]
         # adding a length variable to ease calculations for tailDist
         self.length = max(abs(self.x1 - self.x2), abs(self.y1 - self.y2))
+        # adding a "turn" variable to keep track of left and right turns
+        # self.turn = ''
 
 
 # A class to represent the state of the environment. 
