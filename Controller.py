@@ -53,9 +53,9 @@ class Controller:
             # want a weight of headDist/tailDist
             headDist = taxiDist(x1, y1, x, y)
             try:
-                distSum = distSum + (2*headDist / (t * i))
+                distSum = distSum + ((t*i)/(2*headDist))
             except:
-                continue
+                pass
             t = t - (self.state.body[i].length / 2)
 
         return distSum
@@ -69,6 +69,26 @@ class Controller:
                 return True
 
         return False
+
+    def lineCollision(self, x1, y1, x1_incr, y1_incr, steps):
+        x = x1
+        y = y1
+        while (x<400 and x>=0) and (y<300 and y>=0) and (steps<len(self.state.body)):
+            if self.collision(x, y):
+                return steps
+            x += x1_incr
+            y += y1_incr
+            steps += 1
+
+        if steps == len(self.state.body):
+            return 700
+
+        if x==400:
+            return steps + self.lineCollision(0, y, x1_incr, y1_incr)
+        elif y==300:
+            return steps + self.lineCollision(x, 0, x1_incr, y1_incr)
+
+        return steps
     
     
     
@@ -84,7 +104,7 @@ class Controller:
     def myInit(self):
         #TODO
         self.options = {}
-        self.foodHeadDist = 1401
+        self.foodHeadDist = 700
         pass
     
     #Returns next command selected by the agent.
@@ -107,37 +127,45 @@ class Controller:
         elif (self.state.body[0].x1_incr == -1):
             del self.options['00']
 
+        # Collision function call
+        dKeys = []
+        for key in self.options:
+            if self.collision(x1=self.options[key][0], y1=self.options[key][1]):
+                dKeys.append(key)
+        for key in dKeys:
+            del self.options[key]
+
+        # setting straight-line distance to body in direction
+        # lineColl = {}
+        # for key in self.options:
+        #     x1_incr = self.options[key][0] - self.state.body[0].x1
+        #     y1_incr = self.options[key][1] - self.state.body[0].y1
+        #     lineColl[key] = self.lineCollision(self.options[key][0], self.options[key][1], x1_incr, y1_incr, 0)
+
         self.foodHeadDist = self.foodDist(x1=self.state.body[0].x1, y1=self.state.body[0].y1)
 
-        heuristicSum = {'00': 0, '01': 0, '02': 0, '03': 0}
-
+        heuristicSum = {}
         # putting foodDist weight into heuristicSum
         for key in self.options:
             weight = self.foodDist(x1=self.options[key][0], y1=self.options[key][1])
-            try:
-                weight = (self.foodHeadDist) / weight
-            except:
-                continue
-            heuristicSum[key] += weight
+            heuristicSum[key] = weight
 
         # putting tailDist weight into heuristicSum
         for key in self.options:
             weight = self.tailDist(x1=self.options[key][0], y1=self.options[key][1])
             heuristicSum[key] += weight
 
-        # Collision function call
-        for key in self.options:
-            if self.collision(x1=self.options[key][0], y1=self.options[key][1]):
-                heuristicSum[key] = 0
-            # detect walls
-            # if self.options[key][0] == 0 or self.options[key][0] == 400 or self.options[key][1] == 0 or self.options[key][1] == 300:
-            #     heuristicSum[key] = 0
 
         # setting the favored choice
-        # choice = max(self.optionsProb, key=self.optionsProb.get)
-        choice = max(heuristicSum, key=heuristicSum.get)
-        if heuristicSum[choice] == 0:
-            return NOOP
+        choice = min(heuristicSum, key=heuristicSum.get)
+        # choice = '04'
+        # heuristicSum[choice] = float('inf')
+        # for key in self.options:
+        #     if heuristicSum[key] < lineColl[key] and heuristicSum[key] < heuristicSum[choice]:
+        #         choice = key
+        # if choice == '04':
+        #     choice = max(lineColl, key=lineColl.get)
+
         return bytes.fromhex(choice)
 
     def control(self):
