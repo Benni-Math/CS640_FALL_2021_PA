@@ -47,9 +47,6 @@ class Controller:
             # finding midpoint of line
             x = (self.state.body[i].x1 + self.state.body[i].x2) / 2
             y = (self.state.body[i].y1 + self.state.body[i].y2) / 2
-            # or just setting to the top of the line
-            # x = self.state.body[i].x1
-            # y = self.state.body[i].y1
             # want a weight of headDist/tailDist
             headDist = taxiDist(x1, y1, x, y)
             try:
@@ -98,6 +95,7 @@ class Controller:
                         '02': (self.state.body[0].x1 + 1, self.state.body[0].y1),
                         '03': (self.state.body[0].x1, self.state.body[0].y1 + 1)}
 
+        # removing the "backwards" option
         if (self.state.body[0].y1_incr == 1):
             del self.options['01']
         elif (self.state.body[0].y1_incr == -1):
@@ -129,12 +127,8 @@ class Controller:
         for key in self.options:
             if self.collision(x1=self.options[key][0], y1=self.options[key][1]):
                 heuristicSum[key] = 0
-            # detect walls
-            # if self.options[key][0] == 0 or self.options[key][0] == 400 or self.options[key][1] == 0 or self.options[key][1] == 300:
-            #     heuristicSum[key] = 0
 
         # setting the favored choice
-        # choice = max(self.optionsProb, key=self.optionsProb.get)
         choice = max(heuristicSum, key=heuristicSum.get)
         if heuristicSum[choice] == 0:
             return NOOP
