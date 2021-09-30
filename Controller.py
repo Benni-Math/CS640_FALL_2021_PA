@@ -38,25 +38,37 @@ class Controller:
     def tailDist(self, x1, y1):
         # keeping track of length-to-tail on snake body
         t = 0
-        for i in range(1, len(self.state.body)):
+        for i in range(0, len(self.state.body)):
             t += self.state.body[i].length
 
-        distSum = 0
-        for i in range(1, len(self.state.body) - 1):
-            t = t - (self.state.body[i].length / 2)
-            # finding midpoint of line (need to take into account wall tp)
-            x = (self.state.body[i].x1 + self.state.body[i].x2) / 2
-            y = (self.state.body[i].y1 + self.state.body[i].y2) / 2
-            # or just setting to the top of the line
-            # x = self.state.body[i].x1
-            # y = self.state.body[i].y1
-            # want a weight of headDist/tailDist
-            headDist = taxiDist(x1, y1, x, y)
-            try:
-                distSum = distSum + ((t*i)/(2*headDist))
-            except:
-                pass
-            t = t - (self.state.body[i].length / 2)
+        distSum = float('inf')
+        try:
+            x = self.state.body[t//5].x1
+            y = self.state.body[t//5].y1
+        except:
+            x = self.state.body[len(self.state.body)//5].x1
+            y = self.state.body[len(self.state.body)//5].y1
+        distSum = taxiDist(x1, y1, x, y)
+
+        tail = taxiDist(x1, y1, self.state.body[-1].x2, self.state.body[-1].y2)
+        if tail < distSum:
+            return tail
+
+        # for i in range(1, len(self.state.body) - 1):
+        #     t = t - (self.state.body[i].length / 2)
+        #     # finding midpoint of line (need to take into account wall tp)
+        #     x = (self.state.body[i].x1 + self.state.body[i].x2) / 2
+        #     y = (self.state.body[i].y1 + self.state.body[i].y2) / 2
+        #     # or just setting to the top of the line
+        #     # x = self.state.body[i].x1
+        #     # y = self.state.body[i].y1
+        #     # want a weight of headDist/tailDist
+        #     headDist = taxiDist(x1, y1, x, y)
+        #     try:
+        #         distSum = distSum + ((t*i)/(2*headDist))
+        #     except:
+        #         pass
+        #     t = t - (self.state.body[i].length / 2)
 
         return distSum
 
@@ -144,16 +156,17 @@ class Controller:
 
         self.foodHeadDist = self.foodDist(x1=self.state.body[0].x1, y1=self.state.body[0].y1)
 
-        heuristicSum = {}
+        heuristicSum = {'04': float('inf')}
         # putting foodDist weight into heuristicSum
         for key in self.options:
             weight = self.foodDist(x1=self.options[key][0], y1=self.options[key][1])
             heuristicSum[key] = weight
 
+        bodyDet = {'04': 0}
         # putting tailDist weight into heuristicSum
         for key in self.options:
             weight = self.tailDist(x1=self.options[key][0], y1=self.options[key][1])
-            heuristicSum[key] += weight
+            bodyDet[key] = weight
 
 
         # setting the favored choice
@@ -165,6 +178,8 @@ class Controller:
         #         choice = key
         # if choice == '04':
         #     choice = max(lineColl, key=lineColl.get)
+        if heuristicSum[choice] > bodyDet[choice]:
+            choice = max(bodyDet, key=bodyDet.get)
 
         return bytes.fromhex(choice)
 
