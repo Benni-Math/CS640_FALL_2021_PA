@@ -44,7 +44,7 @@ class Controller:
         distSum = 0
         for i in range(1, len(self.state.body) - 1):
             t = t - (self.state.body[i].length / 2)
-            # finding midpoint of line (need to take into account wall tp)
+            # finding midpoint of line
             x = (self.state.body[i].x1 + self.state.body[i].x2) / 2
             y = (self.state.body[i].y1 + self.state.body[i].y2) / 2
             # or just setting to the top of the line
@@ -115,7 +115,7 @@ class Controller:
         for key in self.options:
             weight = self.foodDist(x1=self.options[key][0], y1=self.options[key][1])
             try:
-                weight = (self.foodHeadDist) / weight
+                weight = (3*self.foodHeadDist) / weight
             except:
                 continue
             heuristicSum[key] += weight
